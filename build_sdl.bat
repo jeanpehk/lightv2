@@ -7,6 +7,4 @@ cmake -S . -B build
 cmake --build build
 cd ../..
 
-md build
-
-copy third_party\SDL\build\Debug build
+copy third_party\SDL\build\Debug bin

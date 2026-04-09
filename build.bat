@@ -1,12 +1,12 @@
 @echo off
 cls
 
-set SDL_LIB_PATH="third_party/SDL/build/Debug/SDL3.lib"
+set SDL_LIB_PATH="bin/SDL3.lib"
 set SDL_INCLUDE_DIR="third_party/SDL/include"
 
-set SRCS=src/main.cpp
+set SRCS=src/main.cpp src/obj_parser.cpp
 
-cl %SDL_LIB_PATH% %SRCS% /std:c++14 /W3 /I %SDL_INCLUDE_DIR% /link /out:build/main.exe
+cl %SDL_LIB_PATH% %SRCS% /std:c++14 /W3 /I %SDL_INCLUDE_DIR% /link /out:bin/main.exe
 
 :: ======================================
 :: linux messing around saved for later.. 
