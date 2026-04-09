@@ -4,6 +4,8 @@
 #include <SDL3/SDL_main.h>
 #include <SDL3/SDL_video.h>
 
+#include "obj_parser.h"
+
 const int WINDOW_WIDTH  = 1024;
 const int WINDOW_HEIGHT = 720;
 
@@ -27,6 +29,11 @@ int main(int argc, char *argv[]) {
 
         return 1;
     }
+
+    // Load OBJ file
+    OBJ obj_data = obj_parse("assets/blender_default_cube.obj");
+    obj_dump_vertices(&obj_data);
+    obj_dump_faces(&obj_data);
 
     bool done = false;
 
