@@ -1,0 +1,8 @@
+*.swp
+*.swo
+*.o
+*.obj
+*.pdb
+a.out
+
+build
