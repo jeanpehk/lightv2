@@ -1,0 +1,1 @@
+Building (parts) of a simple 3d game engine for learning purposes with SDL3 in C++.
