@@ -5,122 +5,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
-#include <windows.h>
-
-// A simple .obj file parser, has a bunch of util stuff for now that will be moved elsewhere.
-// This is just to be able to parse the default blender cube for some basic testing later.
-
-// Windows file stuff
-
-int win_print_last_error() {
-    DWORD err_buf_sz = 512;
-    char err_buf[512] = { 0 };
-    DWORD last_error = GetLastError();
-    DWORD chars_stored = FormatMessage(
-        FORMAT_MESSAGE_FROM_SYSTEM,
-        0,
-        last_error,
-        0, // @Note: use proper LANGID?
-        err_buf,
-        err_buf_sz,
-        0
-    );
-
-    if (chars_stored == 0) {
-        printf("Failed to format the resulting message for last error: %d\n", last_error);
-
-        return -1;
-    }
-
-    printf("%s\n", err_buf);
-
-    return 0;
-}
-
-String file_read_string_alloc(const char *file) {
-    String ret = { 0 };
-
-    HANDLE handle = CreateFileA(
-        file,
-        GENERIC_READ,
-        0,
-        NULL,
-        OPEN_EXISTING,
-        FILE_ATTRIBUTE_NORMAL,
-        NULL
-    );
-
-    if (handle == INVALID_HANDLE_VALUE) {
-        printf("Failed to open %s: ", file);
-        win_print_last_error();
-
-        return ret;
-    }
-
-    // @Note: we don't read the high bytes since
-    // ReadFile takes a DWORD as size anyway and can't be bothered
-    // to do more atm.
-    LPDWORD out_lpFileSizeHigh = NULL;
-    DWORD file_size_low32 = GetFileSize(
-        handle,
-        out_lpFileSizeHigh
-    );
-
-    if (file_size_low32 == INVALID_FILE_SIZE) {
-        win_print_last_error();
-        return ret;
-    }
-
-    DWORD file_size = file_size_low32;
-
-    // @Alloc
-    ret.size = file_size;
-    ret.str = (char *) malloc(sizeof(char) * file_size);
-
-    DWORD bytes_read = 0;
-    BOOL ok = ReadFile(
-        handle,
-        ret.str,
-        (DWORD)ret.size,
-        &bytes_read,
-        NULL
-    );
-
-    if (!ok) {
-        printf("Failed to read %s: ", file);
-        win_print_last_error();
-
-        return ret;
-    }
-
-    return ret;
-}
-
-String string_alloc_copy_from_cstr(char *cstr) {
-    String ret = { 0 };
-
-    ret.size = strlen(cstr);
-    ret.str = (char *) malloc(sizeof(char) * ret.size);
-    for (uint64_t i = 0; i < ret.size; i++) {
-        ret.str[i] = cstr[i];
-    }
-
-    return ret;
-}
-
-void string_free(String string) {
-    string.size = 0;
-    free(string.str);
-}
-
-void string_dump(String string) {
-    for (uint64_t i = 0; i < string.size; i++) {
-        putchar(string.str[i]);
-    }
-}
+#include "core.h"
 
 // Parser
+
+struct Parser {
+    String string;
+    uint64_t index;
+};
 
 char parser_peek(Parser *parser) {
     if (parser->index + 1 >= parser->string.size) {
@@ -232,113 +126,8 @@ bool parser_eat_float(Parser *parser, float *f) {
 
 // OBJ parse
 
-enum Obj_Line_Type {
-    OBJ_LINE_TYPE_COMMENT,         // #
-    OBJ_LINE_TYPE_MATERIAL_FILE,   // mtllib
-    OBJ_LINE_TYPE_OBJECT,          // o
-    OBJ_LINE_TYPE_VERTEX,          // v
-    OBJ_LINE_TYPE_SHADING,         // s
-    OBJ_LINE_TYPE_FACE,            // f
-    OBJ_LINE_TYPE_MATERIAL_NAME,   // usemtl, defined in a separate .mtl file
-    OBJ_LINE_TYPE_WHITESPACE,      //
-    OBJ_LINE_TYPE_UNKNOWN,         //
-};
-
-void dump_obj_line_type(Obj_Line_Type line_type) {
-    switch (line_type) {
-
-        case OBJ_LINE_TYPE_COMMENT: {
-            printf("OBJ_LINE_TYPE_COMMENT\n");
-        } break;
-
-        case OBJ_LINE_TYPE_MATERIAL_FILE: {
-            printf("OBJ_LINE_TYPE_MATERIAL_FILE\n");
-        } break;
-
-        case OBJ_LINE_TYPE_OBJECT: {
-            printf("OBJ_LINE_TYPE_OBJECT\n");
-        } break;
-
-        case OBJ_LINE_TYPE_VERTEX: {
-            printf("OBJ_LINE_TYPE_VERTEX\n");
-        } break;
-
-        case OBJ_LINE_TYPE_SHADING: {
-            printf("OBJ_LINE_TYPE_SHADING\n");
-        } break;
-
-        case OBJ_LINE_TYPE_FACE: {
-            printf("OBJ_LINE_TYPE_FACE\n");
-        } break;
-
-        case OBJ_LINE_TYPE_MATERIAL_NAME: {
-            printf("OBJ_LINE_TYPE_MATERIAL_NAME\n");
-        } break;
-
-        case OBJ_LINE_TYPE_WHITESPACE: {
-            printf("OBJ_LINE_TYPE_WHITESPACE\n");
-        } break;
-
-        case OBJ_LINE_TYPE_UNKNOWN: {
-            printf("OBJ_LINE_TYPE_UNKNOWN\n");
-        } break;
-
-        default: {
-            printf("Unexpected: unhandled Obj_Line_Type, maybe missing a case?\n");
-        } break;
-    }
-}
-
-Obj_Line_Type next_obj_line_type(Parser *parser) {
-    char peek = parser_peek(parser);
-
-    if (peek == '#') {
-        return OBJ_LINE_TYPE_COMMENT;
-    }
-
-    else if (peek == 'o') {
-        return OBJ_LINE_TYPE_OBJECT;
-    }
-
-    else if (peek == 'v') {
-        return OBJ_LINE_TYPE_VERTEX;
-    }
-
-    else if (peek == 's') {
-        return OBJ_LINE_TYPE_SHADING;
-    }
-
-    else if (peek == 'f') {
-        return OBJ_LINE_TYPE_FACE;
-    }
-
-    else if (peek == 'm') {
-        assert(!parser_eat(parser, "mtllib"));
-
-        return OBJ_LINE_TYPE_MATERIAL_FILE;
-    }
-
-    else if (peek == 'u') {
-        assert(!parser_eat(parser, "usemtl"));
-
-        return OBJ_LINE_TYPE_MATERIAL_NAME;
-    }
-
-    else if (isspace(peek)) {
-        return OBJ_LINE_TYPE_WHITESPACE;
-    }
-
-    else if (peek == '\r') {
-        parser->index += 2;
-
-        return next_obj_line_type(parser);
-    }
-
-    return OBJ_LINE_TYPE_UNKNOWN;
-}
-
 void obj_parse_vertex_array(OBJ *obj, Parser *parser) {
-    while (next_obj_line_type(parser) == OBJ_LINE_TYPE_VERTEX) {
+    while (parser_peek(parser) == 'v') {
         Vec3 v = { 0 };
 
         assert(!parser_eat(parser, "v "));
@@ -359,7 +148,7 @@ void obj_parse_vertex_array(OBJ *obj, Parser *parser) {
 }
 
 void obj_parse_face_elem_array(OBJ *obj, Parser *parser) {
-    while (next_obj_line_type(parser) == OBJ_LINE_TYPE_FACE) {
+    while (parser_peek(parser) == 'f') {
         OBJ_Face face = { 0 };
 
         assert(!parser_eat(parser, "f "));
@@ -386,20 +175,6 @@ void obj_parse_face_elem_array(OBJ *obj, Parser *parser) {
     }
 }
 
-void obj_dump_vertices(OBJ *obj) {
-    for (uint64_t i = 0; i < obj->vertices.len; i++) {
-        Vec3 v = obj->vertices.get(i);
-        printf("%zd: %f %f %f\n", i, v.x, v.y, v.z);
-    }
-}
-
-void obj_dump_faces(OBJ *obj) {
-    for (uint64_t i = 0; i < obj->faces.len; i++) {
-        OBJ_Face face = obj->faces.get(i);
-        printf("%zd: %zd %zd %zd\n", i, face.vertex_indices[0], face.vertex_indices[1], face.vertex_indices[2]);
-    }
-}
-
 OBJ obj_parse(const char *fn) {
     OBJ ret = { 0 };
     Parser parser = { 0 };
@@ -414,53 +189,37 @@ OBJ obj_parse(const char *fn) {
     ret.faces = array_create<OBJ_Face>();
 
     while (!parser_done(&parser)) {
-        Obj_Line_Type line_type = next_obj_line_type(&parser);
 
-        switch (line_type) {
+        char c = parser_peek(&parser);
 
-            case OBJ_LINE_TYPE_COMMENT: {
-                parser_skip_line(&parser);
-            } break;
+        if (c == '#') {
+            parser_skip_line(&parser);
+        }
+        else if (c == 'm') { // mtllib = material file
+            parser_skip_line(&parser);
+        }
+        else if (c == 'o') { // o = object
+            parser_skip_line(&parser);
+        }
+        else if (c == 'v') { // v = vertex
+            obj_parse_vertex_array(&ret, &parser);
+        }
+        else if (c == 's') { // s = shading
+            parser_skip_line(&parser);
+        }
+        else if (c == 'f') { // f = face
+            obj_parse_face_elem_array(&ret, &parser);
+        }
+        else if (c == 'u') { // usemtl = material name
+            parser_skip_line(&parser);
+        }
+        // @Todo: we should mb check for garbage within the line here.
+        else if (isspace(c)) {
+            parser_skip_line(&parser);
+        } else {
+            printf("Unknown line start at index: %zd (char %c)\n", parser.index, parser.string.str[parser.index]);
 
-            case OBJ_LINE_TYPE_MATERIAL_FILE: {
-                parser_skip_line(&parser);
-            } break;
-
-            case OBJ_LINE_TYPE_OBJECT: {
-                parser_skip_line(&parser);
-            } break;
-
-            case OBJ_LINE_TYPE_VERTEX: {
-                obj_parse_vertex_array(&ret, &parser);
-            } break;
-
-            case OBJ_LINE_TYPE_SHADING: {
-                parser_skip_line(&parser);
-            } break;
-
-            case OBJ_LINE_TYPE_FACE: {
-                obj_parse_face_elem_array(&ret, &parser);
-            } break;
-
-            case OBJ_LINE_TYPE_MATERIAL_NAME: {
-                parser_skip_line(&parser);
-            } break;
-
-            case OBJ_LINE_TYPE_WHITESPACE: {
-                parser_skip_line(&parser);
-            } break;
-
-            case OBJ_LINE_TYPE_UNKNOWN: {
-                printf("OBJ_LINE_TYPE_UNKNOWN at index: %zd (char %c)\n", parser.index, parser.string.str[parser.index]);
-
-                exit(1);
-            } break;
-
-            default: {
-                printf("Unexpected: line_type not caught by switch, maybe a case is unhandled.\n");
-
-                exit(1);
-            } break;
+            exit(1);
         }
     }
 
@@ -469,4 +228,24 @@ OBJ obj_parse(const char *fn) {
     printf("parse finished..\n");
 
     return ret;
+}
+
+void obj_dump_vertices(OBJ *obj) {
+    for (uint64_t i = 0; i < obj->vertices.len; i++) {
+        Vec3 v = obj->vertices.get(i);
+        printf("%zd: %f %f %f\n", i, v.x, v.y, v.z);
+    }
+}
+
+void obj_dump_faces(OBJ *obj) {
+    for (uint64_t i = 0; i < obj->faces.len; i++) {
+        OBJ_Face face = obj->faces.get(i);
+        printf("%zd: %zd %zd %zd\n", i, face.vertex_indices[0], face.vertex_indices[1], face.vertex_indices[2]);
+    }
+}
+
+void obj_free(OBJ obj) {
+    array_destroy(obj.vertices);
+    array_destroy(obj.texture_coords);
+    array_destroy(obj.normals);
 }

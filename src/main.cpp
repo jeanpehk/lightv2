@@ -34,6 +34,7 @@ int main(int argc, char *argv[]) {
     OBJ obj_data = obj_parse("assets/blender_default_cube.obj");
     obj_dump_vertices(&obj_data);
     obj_dump_faces(&obj_data);
+    obj_free(obj_data);
 
     bool done = false;
 

@@ -6,24 +6,6 @@
 #include "array.h"
 #include "vec3.h"
 
-struct String {
-    char *str;
-    uint64_t size;
-};
-
-String string_alloc_copy_from_cstr(char *cstr);
-void string_free(String string);
-
-struct Parser {
-    String string;
-    uint64_t index;
-};
-
-char parser_peek(Parser *parser);
-void parser_skip_line(Parser *parser);
-bool parser_eat(Parser *parser, const char *str);
-bool parser_done(Parser *parser);
-
 // @Note: We only support triangle data.
 struct OBJ_Face {
     uint64_t vertex_indices[3];
@@ -45,5 +27,6 @@ struct OBJ {
 OBJ obj_parse(const char *fn);
 void obj_dump_vertices(OBJ *obj);
 void obj_dump_faces(OBJ *obj);
+void obj_free(OBJ obj);
 
 #endif // TEXT_PARSER_H
