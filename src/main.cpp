@@ -31,10 +31,17 @@ int main(int argc, char *argv[]) {
     }
 
     // Load OBJ file
+    /*
     OBJ obj_data = obj_parse("assets/blender_default_cube.obj");
     obj_dump_vertices(&obj_data);
     obj_dump_faces(&obj_data);
     obj_free(obj_data);
+    */
+
+    Arena arena = arena_alloc(4096);
+    OBJ *obj = obj_parse(&arena, "assets/blender_default_cube.obj");
+    obj_dump_vertices(obj);
+    obj_dump_faces(obj);
 
     bool done = false;
 

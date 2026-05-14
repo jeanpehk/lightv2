@@ -126,7 +126,7 @@ bool parser_eat_float(Parser *parser, float *f) {
 
 // OBJ parse
 
-void obj_parse_vertex_array(OBJ *obj, Parser *parser) {
+void obj_parse_vertex_array(Arena *arena, OBJ *obj, Parser *parser) {
     while (parser_peek(parser) == 'v') {
         Vec3 v = { 0 };
 
@@ -143,11 +143,11 @@ void obj_parse_vertex_array(OBJ *obj, Parser *parser) {
 
         assert(!parser_eat_newline(parser));
 
-        obj->vertices.push(v);
+        list_add<Vec3>(arena, &obj->vertices, v);
     }
 }
 
-void obj_parse_face_elem_array(OBJ *obj, Parser *parser) {
+void obj_parse_face_elem_array(Arena *arena, OBJ *obj, Parser *parser) {
     while (parser_peek(parser) == 'f') {
         OBJ_Face face = { 0 };
 
@@ -167,7 +167,7 @@ void obj_parse_face_elem_array(OBJ *obj, Parser *parser) {
         face.vertex_indices[1] -= 1;
         face.vertex_indices[2] -= 1;
 
-        obj->faces.push(face);
+        list_add<OBJ_Face>(arena, &obj->faces, face);
 
         if (parser_done(parser)) return;
 
@@ -175,18 +175,16 @@ void obj_parse_face_elem_array(OBJ *obj, Parser *parser) {
     }
 }
 
-OBJ obj_parse(const char *fn) {
-    OBJ ret = { 0 };
+OBJ *obj_parse(Arena *arena, const char *fn) {
+    OBJ *ret = (OBJ *) arena_push_zero(arena, sizeof(OBJ));
+
     Parser parser = { 0 };
 
+    // @Todo: use arena
     String string_data = file_read_string_alloc(fn);
 
     parser.string = string_data;
     parser.index = 0;
-
-    ret.vertices = array_create<Vec3>();
-    ret.normals = array_create<Vec3>();
-    ret.faces = array_create<OBJ_Face>();
 
     while (!parser_done(&parser)) {
 
@@ -202,13 +200,13 @@ OBJ obj_parse(const char *fn) {
             parser_skip_line(&parser);
         }
         else if (c == 'v') { // v = vertex
-            obj_parse_vertex_array(&ret, &parser);
+            obj_parse_vertex_array(arena, ret, &parser);
         }
         else if (c == 's') { // s = shading
             parser_skip_line(&parser);
         }
         else if (c == 'f') { // f = face
-            obj_parse_face_elem_array(&ret, &parser);
+            obj_parse_face_elem_array(arena, ret, &parser);
         }
         else if (c == 'u') { // usemtl = material name
             parser_skip_line(&parser);
@@ -231,21 +229,23 @@ OBJ obj_parse(const char *fn) {
 }
 
 void obj_dump_vertices(OBJ *obj) {
-    for (uint64_t i = 0; i < obj->vertices.len; i++) {
-        Vec3 v = obj->vertices.get(i);
+    List<Vec3> verts = obj->vertices;
+
+    uint64_t i = 0;
+    for (List_Node<Vec3> *node = verts.first; node != NULL; node = node->next) {
+        Vec3 v = node->item;
         printf("%zd: %f %f %f\n", i, v.x, v.y, v.z);
+        i++;
     }
 }
 
 void obj_dump_faces(OBJ *obj) {
-    for (uint64_t i = 0; i < obj->faces.len; i++) {
-        OBJ_Face face = obj->faces.get(i);
-        printf("%zd: %zd %zd %zd\n", i, face.vertex_indices[0], face.vertex_indices[1], face.vertex_indices[2]);
-    }
-}
+    List<OBJ_Face> faces = obj->faces;
 
-void obj_free(OBJ obj) {
-    array_destroy(obj.vertices);
-    array_destroy(obj.texture_coords);
-    array_destroy(obj.normals);
+    uint64_t i = 0;
+    for (List_Node<OBJ_Face> *node = faces.first; node != NULL; node = node->next) {
+        OBJ_Face face = node->item;
+        printf("%zd: %zd %zd %zd\n", i, face.vertex_indices[0], face.vertex_indices[1], face.vertex_indices[2]);
+        i++;
+    }
 }

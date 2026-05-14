@@ -108,3 +108,50 @@ String file_read_string_alloc(const char *file) {
 
     return ret;
 }
+
+// =======
+// - Arena
+// =======
+
+Arena arena_alloc(uint64_t size) {
+    Arena arena = { 0 };
+
+    arena.mem = (uint8_t *) malloc(size);
+    arena.size = size;
+    arena.pos = 0;
+
+    return arena;
+}
+
+void arena_release(Arena *arena) {
+    free(arena->mem);
+    arena->size = 0;
+    arena->pos = 0;
+}
+
+void *_arena_push(Arena *arena, uint64_t size, bool zero) {
+    void *ret = arena->mem + arena->pos;
+
+    if (arena->pos + size > arena->size) {
+        printf("Arena full\n");
+        exit(-1);
+    }
+
+    if (zero) {
+        for (uint64_t i = 0; i < size; i++) {
+            arena->mem[arena->pos+i] = 0;
+        }
+    }
+
+    arena->pos += size;
+
+    return ret;
+}
+
+void *arena_push(Arena *arena, uint64_t size) {
+    return _arena_push(arena, size, false);
+}
+
+void *arena_push_zero(Arena *arena, uint64_t size) {
+    return _arena_push(arena, size, true);
+}
