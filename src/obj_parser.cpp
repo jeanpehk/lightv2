@@ -12,20 +12,20 @@
 // Parser
 
 struct Parser {
-    String string;
+    String *string;
     uint64_t index;
 };
 
 char parser_peek(Parser *parser) {
-    if (parser->index + 1 >= parser->string.size) {
+    if (parser->index + 1 >= parser->string->size) {
         return '\0';
     }
 
-    return parser->string.str[parser->index];
+    return parser->string->str[parser->index];
 }
 
 bool parser_done(Parser *parser) {
-    if (parser->index >= parser->string.size) return true;
+    if (parser->index >= parser->string->size) return true;
 
     char c = parser_peek(parser);
     if (c == '\0') return true;
@@ -106,7 +106,7 @@ bool parser_eat_uint(Parser *parser, uint64_t *u) {
     uint64_t next_word_len = parser_next_word_len(parser);
 
     // @Todo: can output garbage since we don't confirm it's a valid uint.
-    *u = (uint64_t) atoi(&parser->string.str[parser->index]);
+    *u = (uint64_t) atoi(&parser->string->str[parser->index]);
 
     parser->index += next_word_len;
 
@@ -117,7 +117,7 @@ bool parser_eat_float(Parser *parser, float *f) {
     uint64_t next_word_len = parser_next_word_len(parser);
 
     // @Todo: can output garbage since we don't confirm it's a valid float.
-    *f = (float) atof(&parser->string.str[parser->index]);
+    *f = (float) atof(&parser->string->str[parser->index]);
 
     parser->index += next_word_len;
 
@@ -180,8 +180,7 @@ OBJ *obj_parse(Arena *arena, const char *fn) {
 
     Parser parser = { 0 };
 
-    // @Todo: use arena
-    String string_data = file_read_string_alloc(fn);
+    String *string_data = file_read_string(arena, fn);
 
     parser.string = string_data;
     parser.index = 0;
@@ -215,13 +214,11 @@ OBJ *obj_parse(Arena *arena, const char *fn) {
         else if (isspace(c)) {
             parser_skip_line(&parser);
         } else {
-            printf("Unknown line start at index: %zd (char %c)\n", parser.index, parser.string.str[parser.index]);
+            printf("Unknown line start at index: %zd (char %c)\n", parser.index, parser.string->str[parser.index]);
 
             exit(1);
         }
     }
-
-    string_free(string_data);
 
     printf("parse finished..\n");
 

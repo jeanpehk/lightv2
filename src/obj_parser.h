@@ -15,7 +15,6 @@ struct OBJ_Face {
 };
 
 struct OBJ {
-
     // These are declared separately in .obj
     List<Vec3> vertices;
     List<Vec3> texture_coords;

@@ -5,33 +5,19 @@
 
 #include <windows.h>
 
+#define ARENA_DEFAULT_RESERVE_SIZE MB(64)
+#define ARENA_DEFAULT_COMMIT_SIZE  KB(64)
+
 // ========
 // - String
 // ========
-
-String string_alloc_copy_from_cstr(char *cstr) {
-    String ret = { 0 };
-
-    ret.size = strlen(cstr);
-    ret.str = (char *) malloc(sizeof(char) * ret.size);
-    for (uint64_t i = 0; i < ret.size; i++) {
-        ret.str[i] = cstr[i];
-    }
-
-    return ret;
-}
-
-void string_free(String string) {
-    string.size = 0;
-    free(string.str);
-    string.str = NULL;
-}
 
 void string_dump(String string) {
     for (uint64_t i = 0; i < string.size; i++) {
         putchar(string.str[i]);
     }
 }
+
 // =========
 // - Windows
 // =========
@@ -61,10 +47,7 @@ int win_print_last_error() {
     return 0;
 }
 
-// @Note: this would be a nice place to try arenas.
-String file_read_string_alloc(const char *file) {
-    String ret = { 0 };
-
+uint32_t win_read_file(const char *file, uint8_t *buf, uint32_t buf_size) {
     HANDLE handle = CreateFileA(
         file,
         GENERIC_READ,
@@ -79,32 +62,39 @@ String file_read_string_alloc(const char *file) {
         printf("Failed to open %s: ", file);
         win_print_last_error();
 
-        return ret;
+        return 0;
     }
 
-    uint32_t alloc_step_amt = 1024;
-    char *buf = (char *) malloc(sizeof(char) * alloc_step_amt);
-    uint64_t bytes_read_total = 0;
     DWORD bytes_read = 0;
-    uint64_t alloc_counter = 1;
-    while (true) {
-        if (!ReadFile(handle, buf+bytes_read_total, (DWORD) alloc_step_amt, &bytes_read, NULL)) {
-            win_print_last_error();
+    if (!ReadFile(handle, buf, (DWORD) buf_size, &bytes_read, NULL)) {
+        win_print_last_error();
 
-            return ret;
-        }
-
-        bytes_read_total += bytes_read;
-        if (bytes_read < alloc_step_amt) {
-            break;
-        }
-
-        alloc_counter += 1;
-        buf = (char *) realloc(buf, alloc_step_amt * alloc_counter);
+        return 0;
     }
 
-    ret.str = buf;
-    ret.size = bytes_read_total;
+    // @Note: technically could be that there is nothing left to read -> are exactly the same size.
+    if (bytes_read == buf_size) {
+        printf("WARN: win_read_cstring, buf not large enough\n");
+    }
+
+    if (CloseHandle(handle) == 0) {
+        win_print_last_error();
+    }
+
+    return bytes_read;
+}
+
+String *file_read_string(Arena *arena, const char *file) {
+    String *ret = (String *) arena_push_zero(arena, sizeof(String));
+
+    uint8_t *buf = arena_get_pos_ptr(arena);
+    uint64_t buf_size_64 = arena_commit_space_left(arena);
+    uint32_t buf_size_32 = (uint32_t) MIN(UINT32_MAX, buf_size_64);
+    uint32_t bytes_read = win_read_file(file, buf, buf_size_32);
+    arena_push(arena, bytes_read);
+
+    ret->str = (char *) buf;
+    ret->size = bytes_read;
 
     return ret;
 }
@@ -113,27 +103,33 @@ String file_read_string_alloc(const char *file) {
 // - Arena
 // =======
 
-Arena arena_alloc(uint64_t size) {
+// @Todo: VirtualAlloc
+Arena arena_alloc() {
     Arena arena = { 0 };
 
-    arena.mem = (uint8_t *) malloc(size);
-    arena.size = size;
+    arena.mem = (uint8_t *) malloc(ARENA_DEFAULT_COMMIT_SIZE);
+    // @Note: change this when switching to valloc
+    arena.reserve_size = ARENA_DEFAULT_COMMIT_SIZE;
+    arena.commit_size = ARENA_DEFAULT_COMMIT_SIZE;
     arena.pos = 0;
 
     return arena;
 }
 
 void arena_release(Arena *arena) {
+    // @Todo: VirtualAlloc
     free(arena->mem);
-    arena->size = 0;
+    arena->reserve_size = 0;
+    arena->commit_size = 0;
     arena->pos = 0;
 }
 
 void *_arena_push(Arena *arena, uint64_t size, bool zero) {
     void *ret = arena->mem + arena->pos;
 
-    if (arena->pos + size > arena->size) {
-        printf("Arena full\n");
+    if (arena->pos + size > arena->commit_size) {
+        // @Todo: commit more if reserve allows.
+        printf("exit: Arena full\n");
         exit(-1);
     }
 
@@ -154,4 +150,12 @@ void *arena_push(Arena *arena, uint64_t size) {
 
 void *arena_push_zero(Arena *arena, uint64_t size) {
     return _arena_push(arena, size, true);
+}
+
+uint8_t *arena_get_pos_ptr(Arena *arena) {
+    return arena->mem + arena->pos;
+}
+
+uint64_t arena_commit_space_left(Arena *arena) {
+    return arena->commit_size - arena ->pos;
 }

@@ -3,6 +3,32 @@
 
 #include <stdint.h>
 
+#define KB(n)  (((uint64_t)(n)) << 10)
+#define MB(n)  (((uint64_t)(n)) << 20)
+#define GB(n)  (((uint64_t)(n)) << 30)
+#define TB(n)  (((uint64_t)(n)) << 40)
+
+#define MIN(A,B) (((A)<(B)) ? (A):(B))
+#define MAX(A,B) (((A)>(B)) ? (A):(B))
+
+// ========
+// - Arena
+// ========
+
+struct Arena {
+    uint8_t *mem;
+    uint64_t reserve_size;
+    uint64_t commit_size;
+    uint64_t pos;
+};
+
+Arena arena_alloc();
+void arena_release(Arena *arena);
+void *arena_push(Arena *arena, uint64_t size);
+void *arena_push_zero(Arena *arena, uint64_t size);
+uint8_t *arena_get_pos_ptr(Arena *arena);
+uint64_t arena_commit_space_left(Arena *arena);
+
 // ========
 // - String
 // ========
@@ -12,21 +38,12 @@ struct String {
     uint64_t size;
 };
 
-String file_read_string_alloc(const char *file);
-String string_alloc_copy_from_cstr(char *cstr);
-void string_free(String string);
+String *file_read_string(Arena *arena, const char *file);
 void string_dump(String string);
 
-struct Arena {
-    uint8_t *mem;
-    uint64_t size;
-    uint64_t pos;
-};
-
-Arena arena_alloc(uint64_t size);
-void arena_release(Arena *arena);
-void *arena_push(Arena *arena, uint64_t size);
-void *arena_push_zero(Arena *arena, uint64_t size);
+// =============
+// - Linked List
+// =============
 
 template <typename T> struct List_Node {
     T item;
