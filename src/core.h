@@ -34,8 +34,8 @@ uint64_t arena_commit_space_left(Arena *arena);
 // ========
 
 struct String {
-    char *str;
-    uint64_t size;
+    char *str;    // null terminated so that interop with c strings is easier when needed
+    uint64_t len;
 };
 
 String *file_read_string(Arena *arena, const char *file);

@@ -17,7 +17,7 @@ struct Parser {
 };
 
 char parser_peek(Parser *parser) {
-    if (parser->index + 1 >= parser->string->size) {
+    if (parser->index + 1 >= parser->string->len) {
         return '\0';
     }
 
@@ -25,7 +25,7 @@ char parser_peek(Parser *parser) {
 }
 
 bool parser_done(Parser *parser) {
-    if (parser->index >= parser->string->size) return true;
+    if (parser->index >= parser->string->len) return true;
 
     char c = parser_peek(parser);
     if (c == '\0') return true;

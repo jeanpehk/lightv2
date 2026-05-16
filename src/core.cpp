@@ -13,9 +13,7 @@
 // ========
 
 void string_dump(String string) {
-    for (uint64_t i = 0; i < string.size; i++) {
-        putchar(string.str[i]);
-    }
+    printf("%s", string.str);
 }
 
 // =========
@@ -91,10 +89,11 @@ String *file_read_string(Arena *arena, const char *file) {
     uint64_t buf_size_64 = arena_commit_space_left(arena);
     uint32_t buf_size_32 = (uint32_t) MIN(UINT32_MAX, buf_size_64);
     uint32_t bytes_read = win_read_file(file, buf, buf_size_32);
-    arena_push(arena, bytes_read);
+    arena_push(arena, bytes_read+1);
+    buf[bytes_read] = '\0';
 
     ret->str = (char *) buf;
-    ret->size = bytes_read;
+    ret->len = bytes_read;
 
     return ret;
 }
