@@ -27,7 +27,26 @@ int main(int argc, char *argv[]) {
     if (!window) {
         printf("Window creation failed: %s\n", SDL_GetError());
 
-        return 1;
+        return -1;
+    }
+
+    // GPU inits
+    bool debug_mode = true;
+    SDL_GPUDevice *gpu_device = SDL_CreateGPUDevice(
+        SDL_GPU_SHADERFORMAT_SPIRV, // vulkan
+        debug_mode,
+        "vulkan"
+    );
+    if (gpu_device == NULL) {
+        printf("GPU Device creation failed: %s\n", SDL_GetError());
+
+        return -1;
+    }
+
+    if (!SDL_ClaimWindowForGPUDevice(gpu_device, window)) {
+        printf("Window claim for gpu device failed: %s\n", SDL_GetError());
+
+        return -1;
     }
 
     // Load OBJ file
