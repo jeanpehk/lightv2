@@ -9,10 +9,21 @@
 const int WINDOW_WIDTH  = 1024;
 const int WINDOW_HEIGHT = 720;
 
+const SDL_GPUViewport VIEWPORT = {
+    160.0f, // x
+    120.0f, // y
+    320.0f, // w
+    240.0f, // h
+    0.1f,   // min_depth
+    1.0f    // max_depth
+};
+
 static const char *HLSL_ENTRY_POINT_NAME_VERT = "VSMain";
 static const char *HLSL_ENTRY_POINT_NAME_FRAG = "PSMain";
 
 int main(int argc, char *argv[]) {
+    Arena arena = arena_alloc();
+
     bool success = SDL_Init(SDL_INIT_VIDEO);
     if (!success) {
         printf("SDL_Init failed: %s\n", SDL_GetError());
@@ -33,7 +44,8 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    // GPU inits
+    // GPU Init code.
+
     bool debug_mode = true;
     SDL_GPUDevice *gpu_device = SDL_CreateGPUDevice(
         SDL_GPU_SHADERFORMAT_SPIRV, // vulkan
@@ -51,8 +63,6 @@ int main(int argc, char *argv[]) {
 
         return -1;
     }
-
-    Arena arena = arena_alloc();
 
     // Load shaders.
     // It would be nice if we could just generate all the create info stuff while compiling.
@@ -127,14 +137,12 @@ int main(int argc, char *argv[]) {
     indices[1] = 1;
     indices[2] = 2;
 
-    // Create GPU Buffers.
+    printf("Create gpu buffers..\n");
 
     SDL_GPUBufferCreateInfo buffer_info_vertex = { 0 };
     buffer_info_vertex.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
     buffer_info_vertex.size = verts_size;
     buffer_info_vertex.props = 0;
-
-    printf("Create gpu buffers..\n");
 
     SDL_GPUBuffer *gpu_buffer_vertex = SDL_CreateGPUBuffer(gpu_device, &buffer_info_vertex);
     if (gpu_buffer_vertex == NULL) {
@@ -154,6 +162,34 @@ int main(int argc, char *argv[]) {
 
         return -1;
     }
+
+    // @Todo: vertex data descriptions.
+    SDL_GPUVertexInputState vertex_input_state = { 0 };
+
+    SDL_GPUColorTargetDescription color_target_description = { 0 };
+    color_target_description.format = SDL_GetGPUSwapchainTextureFormat(gpu_device, window);
+
+    SDL_GPUGraphicsPipelineTargetInfo graphics_pipeline_target_info = { 0 };
+    graphics_pipeline_target_info.color_target_descriptions = &color_target_description;
+    graphics_pipeline_target_info.num_color_targets = 1;
+
+    SDL_GPUGraphicsPipelineCreateInfo graphics_pipeline_info = { 0 };
+    graphics_pipeline_info.vertex_shader = shader_vert;
+    graphics_pipeline_info.fragment_shader = shader_frag;
+    graphics_pipeline_info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
+    graphics_pipeline_info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
+    graphics_pipeline_info.target_info = graphics_pipeline_target_info;
+    SDL_GPUGraphicsPipeline *graphics_pipeline = SDL_CreateGPUGraphicsPipeline(gpu_device, &graphics_pipeline_info);
+
+    SDL_GPUGraphicsPipeline *pipeline = SDL_CreateGPUGraphicsPipeline(gpu_device, &graphics_pipeline_info);
+    if (pipeline == NULL) {
+        printf("Pipeline creation failed: %s", SDL_GetError());
+
+        return -1;
+    }
+
+    SDL_ReleaseGPUShader(gpu_device, shader_vert);
+    SDL_ReleaseGPUShader(gpu_device, shader_frag);
 
     {
         printf("Upload data to GPU..\n");
@@ -271,6 +307,57 @@ int main(int argc, char *argv[]) {
 
         if (kb_state[SDL_SCANCODE_ESCAPE]) {
             done = true;
+        }
+
+        // Draw
+
+        {
+            SDL_GPUCommandBuffer *cmd_buffer_frame = SDL_AcquireGPUCommandBuffer(gpu_device);
+            if (cmd_buffer_frame == NULL) {
+                printf("Command Buffer creation failed: %s", SDL_GetError());
+
+                return -1;
+            }
+
+            SDL_GPUTexture *swapchain_texture;
+            if (!SDL_WaitAndAcquireGPUSwapchainTexture(cmd_buffer_frame, window, &swapchain_texture, NULL, NULL)) {
+                printf("SDL_WaitAndAcquireGPUSwapchainTexture failed: %s", SDL_GetError());
+
+                return -1;
+            }
+
+            SDL_GPUColorTargetInfo color_target_info = { 0 };
+            color_target_info.texture = swapchain_texture;
+            color_target_info.clear_color = { 0.75f, 0.75f, 0.75f, 1.0f };
+            color_target_info.load_op = SDL_GPU_LOADOP_CLEAR;
+            color_target_info.store_op = SDL_GPU_STOREOP_STORE;
+
+            SDL_GPURenderPass *render_pass = SDL_BeginGPURenderPass(
+                cmd_buffer_frame,
+                &color_target_info,
+                1, // num_color_target_infos
+                NULL
+            );
+
+            SDL_BindGPUGraphicsPipeline(render_pass, graphics_pipeline);
+
+            //SDL_SetGPUViewport(render_pass, &VIEWPORT);
+
+            SDL_GPUBufferBinding buffer_binding = { 0 };
+            buffer_binding.buffer = gpu_buffer_vertex;
+            SDL_BindGPUVertexBuffers(render_pass, 0, &buffer_binding, 1);
+
+            SDL_DrawGPUPrimitives(
+                render_pass,
+                3, // num_vertices
+                1, // num_instances
+                0, // first_vertex
+                0  // first instance
+            );
+
+            SDL_EndGPURenderPass(render_pass);
+
+            SDL_SubmitGPUCommandBuffer(cmd_buffer_frame);
         }
     }
 
