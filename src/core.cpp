@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <windows.h>
+#include "os/os.h"
 
 #define ARENA_DEFAULT_RESERVE_SIZE MB(64)
 #define ARENA_DEFAULT_COMMIT_SIZE  KB(64)
@@ -16,79 +16,13 @@ void string_dump(String string) {
     printf("%s", string.str);
 }
 
-// =========
-// - Windows
-// =========
-
-int win_print_last_error() {
-    DWORD err_buf_sz = 512;
-    char err_buf[512] = { 0 };
-    DWORD last_error = GetLastError();
-    DWORD chars_stored = FormatMessage(
-        FORMAT_MESSAGE_FROM_SYSTEM,
-        0,
-        last_error,
-        0, // @Note: use proper LANGID?
-        err_buf,
-        err_buf_sz,
-        0
-    );
-
-    if (chars_stored == 0) {
-        printf("Failed to format the resulting message for last error: %d\n", last_error);
-
-        return -1;
-    }
-
-    printf("%s\n", err_buf);
-
-    return 0;
-}
-
-uint32_t win_read_file(const char *file, uint8_t *buf, uint32_t buf_size) {
-    HANDLE handle = CreateFileA(
-        file,
-        GENERIC_READ,
-        0,
-        NULL,
-        OPEN_EXISTING,
-        FILE_ATTRIBUTE_NORMAL,
-        NULL
-    );
-
-    if (handle == INVALID_HANDLE_VALUE) {
-        printf("Failed to open %s: ", file);
-        win_print_last_error();
-
-        return 0;
-    }
-
-    DWORD bytes_read = 0;
-    if (!ReadFile(handle, buf, (DWORD) buf_size, &bytes_read, NULL)) {
-        win_print_last_error();
-
-        return 0;
-    }
-
-    // @Note: technically could be that there is nothing left to read -> are exactly the same size.
-    if (bytes_read == buf_size) {
-        printf("WARN: win_read_cstring, buf not large enough\n");
-    }
-
-    if (CloseHandle(handle) == 0) {
-        win_print_last_error();
-    }
-
-    return bytes_read;
-}
-
 String *file_read_string(Arena *arena, const char *file) {
     String *ret = (String *) arena_push_zero(arena, sizeof(String));
 
     uint8_t *buf = arena_get_pos_ptr(arena);
     uint64_t buf_size_64 = arena_commit_space_left(arena);
     uint32_t buf_size_32 = (uint32_t) MIN(UINT32_MAX, buf_size_64);
-    uint32_t bytes_read = win_read_file(file, buf, buf_size_32);
+    uint32_t bytes_read = read_file(file, buf, buf_size_32);
     arena_push(arena, bytes_read+1);
     buf[bytes_read] = '\0';
 

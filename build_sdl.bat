@@ -8,3 +8,11 @@ cmake --build build
 cd ../..
 
 copy third_party\SDL\build\Debug bin
+
+:: WSL:
+:: cd third_party/SDL
+:: mkdir build
+:: cd build
+:: cmake ..
+:: make -j<N>
+:: mv libSDL3*.so* ../../../bin/

@@ -70,7 +70,7 @@ int main(int argc, char *argv[]) {
     const char *vert_shader_fn = "src/shaders/shader.vert.spv";
     String *vert_code = file_read_string(&arena, vert_shader_fn);
 
-    SDL_GPUShaderCreateInfo shader_info_vert = { 0 };
+    SDL_GPUShaderCreateInfo shader_info_vert = {};
     shader_info_vert.code_size = vert_code->len;
     shader_info_vert.code = (const Uint8 *) vert_code->str;
     shader_info_vert.entrypoint = HLSL_ENTRY_POINT_NAME_VERT;
@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
     const char *frag_shader_fn = "src/shaders/shader.frag.spv";
     String *frag_code = file_read_string(&arena, frag_shader_fn);
 
-    SDL_GPUShaderCreateInfo shader_info_frag = { 0 }; // Not sure if we could reuse the earlier struct or if this data needs to stay stable.
+    SDL_GPUShaderCreateInfo shader_info_frag = {};
     shader_info_frag.code_size = frag_code->len;
     shader_info_frag.code = (const Uint8 *) frag_code->str;
     shader_info_frag.entrypoint = HLSL_ENTRY_POINT_NAME_FRAG;
@@ -123,32 +123,32 @@ int main(int argc, char *argv[]) {
 
     printf("Creating the graphics pipeline..\n");
 
-    SDL_GPUVertexBufferDescription vertex_buffer_description = { 0 };
+    SDL_GPUVertexBufferDescription vertex_buffer_description = {};
     vertex_buffer_description.slot = 0;
     vertex_buffer_description.pitch = sizeof(float) * 3;
     vertex_buffer_description.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
     vertex_buffer_description.instance_step_rate = 0; // must be 0
 
-    SDL_GPUVertexAttribute vertex_attribute = { 0 };
+    SDL_GPUVertexAttribute vertex_attribute = {};
     vertex_attribute.location = 0;
     vertex_attribute.buffer_slot = 0;
     vertex_attribute.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
     vertex_attribute.offset = 0;
 
-    SDL_GPUVertexInputState vertex_input_state = { 0 };
+    SDL_GPUVertexInputState vertex_input_state = {};
     vertex_input_state.vertex_buffer_descriptions = &vertex_buffer_description;
     vertex_input_state.num_vertex_buffers = 1;
     vertex_input_state.vertex_attributes = &vertex_attribute;
     vertex_input_state.num_vertex_attributes = 1;
 
-    SDL_GPUColorTargetDescription color_target_description = { 0 };
+    SDL_GPUColorTargetDescription color_target_description = {};
     color_target_description.format = SDL_GetGPUSwapchainTextureFormat(gpu_device, window);
 
-    SDL_GPUGraphicsPipelineTargetInfo graphics_pipeline_target_info = { 0 };
+    SDL_GPUGraphicsPipelineTargetInfo graphics_pipeline_target_info = {};
     graphics_pipeline_target_info.color_target_descriptions = &color_target_description;
     graphics_pipeline_target_info.num_color_targets = 1;
 
-    SDL_GPUGraphicsPipelineCreateInfo graphics_pipeline_info = { 0 };
+    SDL_GPUGraphicsPipelineCreateInfo graphics_pipeline_info = {};
     graphics_pipeline_info.vertex_shader = shader_vert;
     graphics_pipeline_info.fragment_shader = shader_frag;
     graphics_pipeline_info.vertex_input_state = vertex_input_state;
@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
 
     // Create a GPU buffer.
 
-    SDL_GPUBufferCreateInfo buffer_info_vertex = { 0 };
+    SDL_GPUBufferCreateInfo buffer_info_vertex = {};
     buffer_info_vertex.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
     buffer_info_vertex.size = verts_size;
     buffer_info_vertex.props = 0;
@@ -198,7 +198,7 @@ int main(int argc, char *argv[]) {
 
     // Create a transfer buffer.
 
-    SDL_GPUTransferBufferCreateInfo transfer_buffer_info_vertex = { 0 };
+    SDL_GPUTransferBufferCreateInfo transfer_buffer_info_vertex = {};
     transfer_buffer_info_vertex.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
     transfer_buffer_info_vertex.size = verts_size;
     transfer_buffer_info_vertex.props = 0;
@@ -244,11 +244,11 @@ int main(int argc, char *argv[]) {
 
     SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(cmd_buffer);
 
-    SDL_GPUTransferBufferLocation transfer_buffer_vertex_location = { 0 };
+    SDL_GPUTransferBufferLocation transfer_buffer_vertex_location = {};
     transfer_buffer_vertex_location.transfer_buffer = transfer_buffer_vertex;
     transfer_buffer_vertex_location.offset = 0;
 
-    SDL_GPUBufferRegion gpu_buffer_region_vertex = { 0 };
+    SDL_GPUBufferRegion gpu_buffer_region_vertex = {};
     gpu_buffer_region_vertex.buffer = gpu_buffer_vertex;
     gpu_buffer_region_vertex.offset = 0;
     gpu_buffer_region_vertex.size = verts_size;
@@ -350,7 +350,7 @@ int main(int argc, char *argv[]) {
                 return -1;
             }
 
-            SDL_GPUColorTargetInfo color_target_info = { 0 };
+            SDL_GPUColorTargetInfo color_target_info = {};
             color_target_info.texture = swapchain_texture;
             color_target_info.clear_color = { 0.75f, 0.75f, 0.75f, 1.0f };
             color_target_info.load_op = SDL_GPU_LOADOP_CLEAR;
@@ -367,7 +367,7 @@ int main(int argc, char *argv[]) {
 
             //SDL_SetGPUViewport(render_pass, &VIEWPORT);
 
-            SDL_GPUBufferBinding buffer_binding = { 0 };
+            SDL_GPUBufferBinding buffer_binding = {};
             buffer_binding.buffer = gpu_buffer_vertex;
             buffer_binding.offset = 0;
             SDL_BindGPUVertexBuffers(render_pass, 0, &buffer_binding, 1);
