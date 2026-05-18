@@ -114,57 +114,32 @@ int main(int argc, char *argv[]) {
     // Quick buffer data for a triangle.
 
     uint32_t num_verts = 3;
-    uint32_t verts_size = sizeof(float) * num_verts * 3;
-    float *verts = (float*) arena_push_zero(&arena, verts_size);
+    uint32_t verts_size = sizeof(float) * 3 * num_verts;
 
-    verts[0] = 0.0f;
-    verts[1] = 0.0f;
-    verts[2] = 0.0f;
-
-    verts[3] = 1.0f;
-    verts[4] = 1.0f;
-    verts[5] = 0.0f;
-
-    verts[6] = 0.0f;
-    verts[7] = 1.0f;
-    verts[8] = 0.0f;
-
+    /*
     uint32_t num_indices = 3;
     uint32_t indices_size = sizeof(uint32_t) * num_indices;
-    uint32_t *indices = (uint32_t*) arena_push_zero(&arena, indices_size);
+    */
 
-    indices[0] = 0;
-    indices[1] = 1;
-    indices[2] = 2;
+    printf("Creating the graphics pipeline..\n");
 
-    printf("Create gpu buffers..\n");
+    SDL_GPUVertexBufferDescription vertex_buffer_description = { 0 };
+    vertex_buffer_description.slot = 0;
+    vertex_buffer_description.pitch = sizeof(float) * 3;
+    vertex_buffer_description.input_rate = SDL_GPU_VERTEXINPUTRATE_VERTEX;
+    vertex_buffer_description.instance_step_rate = 0; // must be 0
 
-    SDL_GPUBufferCreateInfo buffer_info_vertex = { 0 };
-    buffer_info_vertex.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
-    buffer_info_vertex.size = verts_size;
-    buffer_info_vertex.props = 0;
+    SDL_GPUVertexAttribute vertex_attribute = { 0 };
+    vertex_attribute.location = 0;
+    vertex_attribute.buffer_slot = 0;
+    vertex_attribute.format = SDL_GPU_VERTEXELEMENTFORMAT_FLOAT3;
+    vertex_attribute.offset = 0;
 
-    SDL_GPUBuffer *gpu_buffer_vertex = SDL_CreateGPUBuffer(gpu_device, &buffer_info_vertex);
-    if (gpu_buffer_vertex == NULL) {
-        printf("GPU Buffer creation failed: %s", SDL_GetError());
-
-        return -1;
-    }
-
-    SDL_GPUBufferCreateInfo buffer_info_index = { 0 };
-    buffer_info_index.usage = SDL_GPU_BUFFERUSAGE_INDEX;
-    buffer_info_index.size = indices_size;
-    buffer_info_index.props = 0;
-
-    SDL_GPUBuffer *gpu_buffer_index = SDL_CreateGPUBuffer(gpu_device, &buffer_info_index);
-    if (gpu_buffer_index == NULL) {
-        printf("GPU Buffer creation failed: %s", SDL_GetError());
-
-        return -1;
-    }
-
-    // @Todo: vertex data descriptions.
     SDL_GPUVertexInputState vertex_input_state = { 0 };
+    vertex_input_state.vertex_buffer_descriptions = &vertex_buffer_description;
+    vertex_input_state.num_vertex_buffers = 1;
+    vertex_input_state.vertex_attributes = &vertex_attribute;
+    vertex_input_state.num_vertex_attributes = 1;
 
     SDL_GPUColorTargetDescription color_target_description = { 0 };
     color_target_description.format = SDL_GetGPUSwapchainTextureFormat(gpu_device, window);
@@ -176,6 +151,7 @@ int main(int argc, char *argv[]) {
     SDL_GPUGraphicsPipelineCreateInfo graphics_pipeline_info = { 0 };
     graphics_pipeline_info.vertex_shader = shader_vert;
     graphics_pipeline_info.fragment_shader = shader_frag;
+    graphics_pipeline_info.vertex_input_state = vertex_input_state;
     graphics_pipeline_info.primitive_type = SDL_GPU_PRIMITIVETYPE_TRIANGLELIST;
     graphics_pipeline_info.rasterizer_state.fill_mode = SDL_GPU_FILLMODE_FILL;
     graphics_pipeline_info.target_info = graphics_pipeline_target_info;
@@ -191,95 +167,143 @@ int main(int argc, char *argv[]) {
     SDL_ReleaseGPUShader(gpu_device, shader_vert);
     SDL_ReleaseGPUShader(gpu_device, shader_frag);
 
-    {
-        printf("Upload data to GPU..\n");
+    /*
+    SDL_GPUBufferCreateInfo buffer_info_index = { 0 };
+    buffer_info_index.usage = SDL_GPU_BUFFERUSAGE_INDEX;
+    buffer_info_index.size = indices_size;
+    buffer_info_index.props = 0;
 
-        SDL_GPUCommandBuffer *cmd_buffer = SDL_AcquireGPUCommandBuffer(gpu_device);
-        if (cmd_buffer == NULL) {
-            printf("Command Buffer creation failed: %s", SDL_GetError());
+    SDL_GPUBuffer *gpu_buffer_index = SDL_CreateGPUBuffer(gpu_device, &buffer_info_index);
+    if (gpu_buffer_index == NULL) {
+        printf("GPU Buffer creation failed: %s", SDL_GetError());
 
-            return -1;
-        }
-
-        SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(cmd_buffer);
-
-        // Vertex
-
-        SDL_GPUTransferBufferCreateInfo transfer_buffer_info_vertex = { 0 };
-        transfer_buffer_info_vertex.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-        transfer_buffer_info_vertex.size = verts_size;
-        transfer_buffer_info_vertex.props = 0;
-
-        SDL_GPUTransferBuffer *transfer_buffer_vertex = SDL_CreateGPUTransferBuffer(
-            gpu_device,
-            &transfer_buffer_info_vertex
-        );
-        if (transfer_buffer_vertex == NULL) {
-            printf("Transfer buffer creation failed: %s", SDL_GetError());
-
-            return -1;
-        }
-
-        SDL_GPUTransferBufferLocation transfer_buffer_vertex_location = { 0 };
-        transfer_buffer_vertex_location.transfer_buffer = transfer_buffer_vertex;
-        transfer_buffer_vertex_location.offset = 0;
-
-        SDL_GPUBufferRegion gpu_buffer_region_vertex = { 0 };
-        gpu_buffer_region_vertex.buffer = gpu_buffer_vertex;
-        gpu_buffer_region_vertex.offset = 0;
-        gpu_buffer_region_vertex.size = verts_size;
-
-        SDL_UploadToGPUBuffer(
-            copy_pass,
-            &transfer_buffer_vertex_location,
-            &gpu_buffer_region_vertex,
-            false // cycle
-        );
-
-        // Index
-
-        SDL_GPUTransferBufferCreateInfo transfer_buffer_info_index = { 0 };
-        transfer_buffer_info_index.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-        transfer_buffer_info_index.size = indices_size;
-        transfer_buffer_info_index.props = 0;
-
-        SDL_GPUTransferBuffer *transfer_buffer_index = SDL_CreateGPUTransferBuffer(
-            gpu_device,
-            &transfer_buffer_info_index
-        );
-        if (transfer_buffer_index == NULL) {
-            printf("Transfer buffer creation failed: %s", SDL_GetError());
-
-            return -1;
-        }
-
-        SDL_GPUTransferBufferLocation transfer_buffer_index_location = { 0 };
-        transfer_buffer_index_location.transfer_buffer = transfer_buffer_index;
-        transfer_buffer_index_location.offset = 0;
-
-        SDL_GPUBufferRegion gpu_buffer_region_index = { 0 };
-        gpu_buffer_region_index.buffer = gpu_buffer_index;
-        gpu_buffer_region_index.offset = 0;
-        gpu_buffer_region_index.size = indices_size;
-
-        SDL_UploadToGPUBuffer(
-            copy_pass,
-            &transfer_buffer_index_location,
-            &gpu_buffer_region_index,
-            false // cycle
-        );
-
-        SDL_EndGPUCopyPass(copy_pass);
-
-        SDL_ReleaseGPUTransferBuffer(gpu_device, transfer_buffer_vertex);
-        SDL_ReleaseGPUTransferBuffer(gpu_device, transfer_buffer_index);
-
-        if (!SDL_SubmitGPUCommandBuffer(cmd_buffer)) {
-            printf("Submit command buffer failed: %s", SDL_GetError());
-
-            return -1;
-        }
+        return -1;
     }
+        */
+
+
+    // Create a GPU buffer.
+
+    SDL_GPUBufferCreateInfo buffer_info_vertex = { 0 };
+    buffer_info_vertex.usage = SDL_GPU_BUFFERUSAGE_VERTEX;
+    buffer_info_vertex.size = verts_size;
+    buffer_info_vertex.props = 0;
+
+    SDL_GPUBuffer *gpu_buffer_vertex = SDL_CreateGPUBuffer(gpu_device, &buffer_info_vertex);
+    if (gpu_buffer_vertex == NULL) {
+        printf("GPU Buffer creation failed: %s", SDL_GetError());
+
+        return -1;
+    }
+
+    // Create a transfer buffer.
+
+    SDL_GPUTransferBufferCreateInfo transfer_buffer_info_vertex = { 0 };
+    transfer_buffer_info_vertex.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+    transfer_buffer_info_vertex.size = verts_size;
+    transfer_buffer_info_vertex.props = 0;
+
+    SDL_GPUTransferBuffer *transfer_buffer_vertex = SDL_CreateGPUTransferBuffer(
+        gpu_device,
+        &transfer_buffer_info_vertex
+    );
+    if (transfer_buffer_vertex == NULL) {
+        printf("Transfer buffer creation failed: %s", SDL_GetError());
+
+        return -1;
+    }
+
+    // Map transfer buffer so we can upload data to it and then unmap it.
+
+    float *transfer_data = (float *) SDL_MapGPUTransferBuffer(gpu_device, transfer_buffer_vertex, false);
+
+    transfer_data[0] = 0.0f;
+    transfer_data[1] = 1.0f;
+    transfer_data[2] = 0.0f;
+
+    transfer_data[3] = 1.0f;
+    transfer_data[4] = 0.0f;
+    transfer_data[5] = 0.0f;
+
+    transfer_data[6] = 0.0f;
+    transfer_data[7] = 0.0f;
+    transfer_data[8] = 0.0f;
+
+    SDL_UnmapGPUTransferBuffer(gpu_device, transfer_buffer_vertex);
+
+    // Upload the data to the GPU.
+
+    printf("Uploading data to GPU..\n");
+
+    SDL_GPUCommandBuffer *cmd_buffer = SDL_AcquireGPUCommandBuffer(gpu_device);
+    if (cmd_buffer == NULL) {
+        printf("Command Buffer creation failed: %s", SDL_GetError());
+
+        return -1;
+    }
+
+    SDL_GPUCopyPass *copy_pass = SDL_BeginGPUCopyPass(cmd_buffer);
+
+    SDL_GPUTransferBufferLocation transfer_buffer_vertex_location = { 0 };
+    transfer_buffer_vertex_location.transfer_buffer = transfer_buffer_vertex;
+    transfer_buffer_vertex_location.offset = 0;
+
+    SDL_GPUBufferRegion gpu_buffer_region_vertex = { 0 };
+    gpu_buffer_region_vertex.buffer = gpu_buffer_vertex;
+    gpu_buffer_region_vertex.offset = 0;
+    gpu_buffer_region_vertex.size = verts_size;
+
+    SDL_UploadToGPUBuffer(
+        copy_pass,
+        &transfer_buffer_vertex_location,
+        &gpu_buffer_region_vertex,
+        false
+    );
+
+    // Index
+
+    /*
+    SDL_GPUTransferBufferCreateInfo transfer_buffer_info_index = { 0 };
+    transfer_buffer_info_index.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+    transfer_buffer_info_index.size = indices_size;
+    transfer_buffer_info_index.props = 0;
+
+    SDL_GPUTransferBuffer *transfer_buffer_index = SDL_CreateGPUTransferBuffer(
+        gpu_device,
+        &transfer_buffer_info_index
+    );
+    if (transfer_buffer_index == NULL) {
+        printf("Transfer buffer creation failed: %s", SDL_GetError());
+
+        return -1;
+    }
+
+    SDL_GPUTransferBufferLocation transfer_buffer_index_location = { 0 };
+    transfer_buffer_index_location.transfer_buffer = transfer_buffer_index;
+    transfer_buffer_index_location.offset = 0;
+
+    SDL_GPUBufferRegion gpu_buffer_region_index = { 0 };
+    gpu_buffer_region_index.buffer = gpu_buffer_index;
+    gpu_buffer_region_index.offset = 0;
+    gpu_buffer_region_index.size = indices_size;
+
+    SDL_UploadToGPUBuffer(
+        copy_pass,
+        &transfer_buffer_index_location,
+        &gpu_buffer_region_index,
+        false // cycle
+    );
+    */
+
+    SDL_EndGPUCopyPass(copy_pass);
+    if (!SDL_SubmitGPUCommandBuffer(cmd_buffer)) {
+        printf("Submit command buffer failed: %s", SDL_GetError());
+
+        return -1;
+    }
+
+    SDL_ReleaseGPUTransferBuffer(gpu_device, transfer_buffer_vertex);
+    //SDL_ReleaseGPUTransferBuffer(gpu_device, transfer_buffer_index);
 
     // Load OBJ file
 
@@ -335,7 +359,7 @@ int main(int argc, char *argv[]) {
             SDL_GPURenderPass *render_pass = SDL_BeginGPURenderPass(
                 cmd_buffer_frame,
                 &color_target_info,
-                1, // num_color_target_infos
+                1,
                 NULL
             );
 
@@ -345,6 +369,7 @@ int main(int argc, char *argv[]) {
 
             SDL_GPUBufferBinding buffer_binding = { 0 };
             buffer_binding.buffer = gpu_buffer_vertex;
+            buffer_binding.offset = 0;
             SDL_BindGPUVertexBuffers(render_pass, 0, &buffer_binding, 1);
 
             SDL_DrawGPUPrimitives(
@@ -360,6 +385,9 @@ int main(int argc, char *argv[]) {
             SDL_SubmitGPUCommandBuffer(cmd_buffer_frame);
         }
     }
+
+    SDL_ReleaseGPUGraphicsPipeline(gpu_device, graphics_pipeline);
+    SDL_ReleaseGPUBuffer(gpu_device, gpu_buffer_vertex);
 
     SDL_DestroyWindow(window);
     SDL_Quit();
